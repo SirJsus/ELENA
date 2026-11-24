@@ -41,6 +41,12 @@ class ClienteFalso:
             raise ErrorElena("No hay ningún reproductor abierto.")
         self.ordenes.append((accion, reproductor))
 
+    async def posicion(self, posicion_ms, reproductor=None):
+        self.ordenes.append(("posicion", posicion_ms, reproductor))
+
+    async def saltar(self, saltar_ms, reproductor=None):
+        self.ordenes.append(("saltar", saltar_ms, reproductor))
+
     def elegir(self, reproductor):
         self.modelo.elegir(reproductor)
         self.al_cambiar()
@@ -82,10 +88,16 @@ class SistemaFalso:
     def apagar_pc(self):
         self.llamadas.append(("apagar_pc",))
 
+    def abrir(self, cmd):
+        self.llamadas.append(("abrir", tuple(cmd)))
 
-def metadata(titulo="Instant Crush", largo=337_000_000, trackid="/elena/1"):
-    return {"mpris:trackid": trackid, "xesam:title": titulo, "xesam:artist": ["Daft Punk"],
-            "xesam:album": "Random Access Memories", "mpris:length": largo}
+
+def metadata(titulo="Instant Crush", largo=337_000_000, trackid="/elena/1", url=None):
+    md = {"mpris:trackid": trackid, "xesam:title": titulo, "xesam:artist": ["Daft Punk"],
+          "xesam:album": "Random Access Memories", "mpris:length": largo}
+    if url:
+        md["xesam:url"] = url
+    return md
 
 
 def props(estado="Playing", **md):
@@ -131,8 +143,33 @@ async def test_entorno(centro, reloj):
     centro.cliente.modelo.alta(PREFERIDO, props(), posicion_us=37_000_000)
     reloj.t += 10
     e = centro.entorno()
-    assert e.musica == "Playing" and e.pista == "/elena/1"
+    assert e.musica == "Playing" and "/elena/1" in e.pista and "Instant Crush" in e.pista
     assert e.restante_ms == 337_000 - 47_000 and len(e.volumen) == 6 and e.vm is False
+
+
+async def test_la_pista_no_depende_solo_del_trackid(centro):
+    """Zen publica el mismo trackid para cualquier video: «fin de canción» debe ver el cambio."""
+    firefox = "/org/mpris/MediaPlayer2/firefox"
+    centro.cliente.modelo.alta(PREFERIDO, props(trackid=firefox, titulo="Uno", url="https://www.youtube.com/watch?v=a"))
+    antes = centro.entorno().pista
+    centro.cliente.modelo.cambio(PREFERIDO, {"Metadata": metadata(trackid=firefox, titulo="Dos",
+                                                                    url="https://www.youtube.com/watch?v=b")})
+    assert centro.entorno().pista != antes
+    # La duración que llega tarde (Zen) no es otra canción
+    tarde = metadata(trackid=firefox, titulo="Dos", url="https://www.youtube.com/watch?v=b", largo=19_000_000)
+    ahora = centro.entorno().pista
+    centro.cliente.modelo.cambio(PREFERIDO, {"Metadata": tarde})
+    assert centro.entorno().pista == ahora
+
+
+async def test_abrir_video(centro, monkeypatch):
+    monkeypatch.setenv("ELENA_REMOTO_ABRIR", "abrir-video --ventana zen {url}")
+    url = await centro.abrir("https://youtu.be/jNQXAC9IVRw?t=5")
+    assert url == "https://www.youtube.com/watch?v=jNQXAC9IVRw&t=5s"
+    assert centro.sistema.llamadas[-1] == ("abrir", ("abrir-video", "--ventana", "zen", url))
+    with pytest.raises(ErrorElena, match="YouTube"):
+        await centro.abrir("https://ejemplo.com/watch?v=jNQXAC9IVRw")
+    assert len([x for x in centro.sistema.llamadas if x[0] == "abrir"]) == 1
 
 
 async def test_temporizador_completo(centro, reloj, tmp_path):
@@ -291,6 +328,36 @@ async def test_ordenes(http, centro):
     assert (await post(http, "/api/volumen", {"silencio": "sí"})).status == 400
     r = await http.post("/api/volumen", data="no es json", headers={"Origin": http.origen})
     assert r.status == 400
+
+
+async def test_posicion_por_http(http, centro):
+    await emparejar(http)
+    centro.cliente.modelo.alta(PREFERIDO, props())
+    assert (await post(http, "/api/musica", {"posicion_ms": 83_000})).status == 200
+    assert (await post(http, "/api/musica", {"posicion_ms": 83_000.6, "reproductor": "x"})).status == 200
+    assert (await post(http, "/api/musica", {"saltar_ms": -10_000})).status == 200
+    assert centro.cliente.ordenes == [("posicion", 83_000, None), ("posicion", 83_001, "x"),
+                                      ("saltar", -10_000, None)]
+    for malo in ({"posicion_ms": "83"}, {"posicion_ms": True}, {"saltar_ms": None}, {"posicion_ms": 1e400}):
+        r = await post(http, "/api/musica", malo)
+        assert r.status == 400, malo
+    assert len(centro.cliente.ordenes) == 3
+
+
+async def test_abrir_por_http(http, centro, monkeypatch):
+    monkeypatch.setenv("ELENA_REMOTO_ABRIR", "xdg-open {url}")
+    r = await post(http, "/api/abrir", {"url": "https://youtu.be/jNQXAC9IVRw"})
+    assert r.status == 401                                  # sin emparejar
+    await emparejar(http)
+    r = await http.post("/api/abrir", json={"url": "https://youtu.be/jNQXAC9IVRw"})
+    assert r.status == 403                                  # sin Origin
+    r = await post(http, "/api/abrir", {"url": "https://youtu.be/jNQXAC9IVRw"})
+    assert r.status == 200 and (await r.json())["url"] == "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    r = await post(http, "/api/abrir", {"url": "file:///etc/passwd"})
+    assert r.status == 400 and "YouTube" in (await r.json())["error"]
+    assert (await post(http, "/api/abrir", {})).status == 400
+    assert [x for x in centro.sistema.llamadas if x[0] == "abrir"] == [
+        ("abrir", ("xdg-open", "https://www.youtube.com/watch?v=jNQXAC9IVRw"))]
 
 
 async def test_temporizador_por_http(http, centro):

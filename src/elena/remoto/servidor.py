@@ -8,6 +8,8 @@ Rutas (todo lo de /api y /caratula exige la cookie del token; ver acceso.py):
   GET  /api/ws                WebSocket: el estado completo al conectar y en cada cambio
   GET  /caratula              la carátula del reproductor actual
   POST /api/musica            {"orden": …, "reproductor": …?} o {"elegir": id | null}
+                              o {"posicion_ms": 83000 | "saltar_ms": -10000, "reproductor": …?}
+  POST /api/abrir             {"url": "<enlace de YouTube>"}: lo abre en la PC (abrir.py)
   POST /api/volumen           {"pct": 62} o {"silencio": true | false | null}
   POST /api/temporizador      {"minutos": 30 | "fin_cancion": true, "nivel": …}
   POST /api/temporizador/mas  {"minutos": 10}
@@ -23,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import math
 from pathlib import Path
 
 from aiohttp import WSMsgType, web
@@ -140,13 +143,33 @@ def _ok(**extra) -> web.Response:
     return web.json_response({"ok": True, **extra})
 
 
+def _entero(datos: dict, clave: str) -> int:
+    valor = datos[clave]
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)) or not math.isfinite(valor):
+        raise ErrorElena(f"«{clave}» va en milisegundos.")
+    return round(valor)
+
+
 async def musica(request: web.Request) -> web.Response:
     centro, datos = request.app[CENTRO], await _cuerpo(request)
+    reproductor = datos.get("reproductor")
+    reproductor = None if reproductor is None else str(reproductor)
     if "elegir" in datos:
         centro.elegir(datos["elegir"])
+    elif "posicion_ms" in datos:
+        await centro.posicion(_entero(datos, "posicion_ms"), reproductor)
+    elif "saltar_ms" in datos:
+        await centro.saltar(_entero(datos, "saltar_ms"), reproductor)
     else:
-        await centro.musica(str(datos["orden"]), datos.get("reproductor"))
+        await centro.musica(str(datos["orden"]), reproductor)
     return _ok()
+
+
+async def abrir(request: web.Request) -> web.Response:
+    centro, datos = request.app[CENTRO], await _cuerpo(request)
+    url = await centro.abrir(str(datos["url"]))
+    log(f"Abrir {url} desde {request.remote}")
+    return _ok(url=url)
 
 
 async def volumen(request: web.Request) -> web.Response:
@@ -205,6 +228,7 @@ def crear_app(centro: Centro, token: Token | None = None, hosts: Hosts | None = 
     app.router.add_get("/api/estado", estado)
     app.router.add_get("/api/ws", ws)
     app.router.add_post("/api/musica", musica)
+    app.router.add_post("/api/abrir", abrir)
     app.router.add_post("/api/volumen", volumen)
     app.router.add_post("/api/temporizador", temporizador)
     app.router.add_delete("/api/temporizador", temporizador)

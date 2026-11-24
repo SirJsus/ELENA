@@ -26,9 +26,20 @@
     </div>
     <h1 id="titulo">Nada sonando</h1>
     <p id="artista" class="tenue"></p>
-    <div class="avance" aria-hidden="true">
-      <div class="pista"><div id="relleno"></div></div>
-      <div class="tiempos"><span id="pos">0:00</span><span id="dur"></span></div>
+    <div class="avance">
+      <div id="barra" class="zona" role="slider" tabindex="-1" aria-label="Posición" aria-disabled="true"
+           aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+        <div class="pista"><div id="relleno"></div></div>
+        <div id="perilla"></div>
+      </div>
+      <div class="tiempos">
+        <span id="pos">0:00</span>
+        <span id="saltos" class="saltos" hidden>
+          <button id="atras" class="salto" aria-label="Retroceder 10 segundos">−10 s</button>
+          <button id="adelante" class="salto" aria-label="Adelantar 10 segundos">+10 s</button>
+        </span>
+        <span id="dur"></span>
+      </div>
     </div>
     <div class="controles">
       <button id="anterior" class="redondo" aria-label="Anterior">
@@ -51,6 +62,15 @@
     </button>
     <input id="vol" type="range" min="0" max="100" step="1" value="0" aria-label="Volumen">
     <span id="vol-valor" class="cifra">—</span>
+  </section>
+
+  <section class="tarjeta" aria-labelledby="t-video">
+    <h2 id="t-video">Ver este video</h2>
+    <form id="video-form" class="fila">
+      <input id="video-url" type="url" inputmode="url" autocomplete="off" placeholder="Enlace de YouTube"
+             aria-label="Enlace de YouTube">
+      <button type="submit" class="corto">Abrir</button>
+    </form>
   </section>
 
   <section class="tarjeta" aria-labelledby="t-temporizador">

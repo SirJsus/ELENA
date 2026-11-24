@@ -52,10 +52,30 @@ code { background: var(--tarjeta); padding: 2px 6px; border-radius: 6px; user-se
 h1 { font-size: 21px; margin: 0 0 4px; line-height: 1.25; overflow-wrap: anywhere; }
 #artista { margin: 0 0 18px; min-height: 1.4em; overflow-wrap: anywhere; }
 .avance { margin: 0 4px 14px; }
-.pista { height: 4px; border-radius: 2px; background: var(--borde); overflow: hidden; }
+/* La zona táctil es más alta que la pista; pan-y deja desplazar la página en vertical */
+.zona { position: relative; height: 32px; display: flex; align-items: center; touch-action: pan-y; }
+.pista { flex: 1; height: 4px; border-radius: 2px; background: var(--borde); overflow: hidden; }
 #relleno { height: 100%; width: 0; background: var(--texto); border-radius: 2px; }
-.tiempos { display: flex; justify-content: space-between; font-size: 12px; color: var(--tenue); margin-top: 6px;
-           font-variant-numeric: tabular-nums; }
+#perilla {
+  position: absolute; left: 0; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--texto); opacity: 0; transition: opacity 0.15s, transform 0.15s; pointer-events: none;
+}
+.zona.movible { cursor: pointer; }
+.zona.movible #perilla { opacity: 1; }
+.zona.activa #perilla { transform: scale(1.4); }
+.zona.activa #relleno { background: var(--acento); }
+.zona:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; border-radius: 4px; }
+.tiempos { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--tenue);
+           font-variant-numeric: tabular-nums; min-height: 20px; }
+.tiempos > span:first-child, .tiempos > span:last-child { min-width: 3.5em; }
+.tiempos > span:last-child { text-align: right; }
+.saltos { display: flex; gap: 8px; }
+.salto {
+  min-height: 36px; min-width: 64px; border-radius: 18px; border: 1px solid var(--borde); background: transparent;
+  font-size: 14px; color: var(--texto); padding: 4px 12px; touch-action: manipulation;
+  font-variant-numeric: tabular-nums;
+}
+.salto:active { background: var(--acento-fondo); }
 .controles { display: flex; justify-content: center; align-items: center; gap: 28px; margin-bottom: 8px; }
 .redondo {
   width: 56px; height: 56px; border-radius: 50%; border: 0; background: transparent;
@@ -104,7 +124,11 @@ h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: 
   min-height: 44px; border-radius: 10px; border: 1px solid var(--borde); background: #1f232c; padding: 8px 14px;
   touch-action: manipulation;
 }
-.tarjeta input[type=number] { background: var(--fondo); }
+.tarjeta input[type=number], .tarjeta input[type=url] { background: var(--fondo); }
+.tarjeta input[type=url] {
+  min-height: 44px; border-radius: 10px; border: 1px solid var(--borde); padding: 8px 12px; user-select: text;
+}
+.fila > button.corto { flex: 0 0 auto; }
 .tarjeta button:active { background: var(--acento-fondo); }
 .peligro { color: var(--peligro); }
 .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; }

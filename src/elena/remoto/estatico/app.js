@@ -11,6 +11,7 @@ const FASES = { contando: "", desvaneciendo: "Bajando el volumen…", pausando: 
                 restaurando: "Pausando…", apagando_vm: "Apagando la VM…" };
 const VM = { apagada: "apagada", encendiendo: "encendiendo…", corriendo: "encendida", apagando: "apagando…" };
 const MANTENER_MS = 2000;
+const SALTO_MS = 10000;     // los botones −10 s y +10 s
 
 let estado = null;          // el último mensaje de estado
 let recibido = 0;           // performance.now() al recibirlo
@@ -19,6 +20,7 @@ let espera = 1000;          // reintento del WebSocket (crece hasta 10 s)
 let reintento = null;
 let arrastrando = 0;        // hasta cuándo (performance.now) se ignora el volumen que llega
 let caratulaActual = null;
+let destino = null;         // ms mientras se arrastra la barra (solo en el teléfono hasta soltar)
 
 // ---------- red ----------
 
@@ -124,6 +126,15 @@ function pintarMusica(m, lista) {
   $("siguiente").disabled = !m || !m.puede.siguiente;
   $("dur").textContent = m ? tiempo(m.duracion_ms) : "";
 
+  const barra = $("barra");
+  const movible = puedeArrastrar(m);
+  barra.classList.toggle("movible", movible);
+  barra.setAttribute("aria-disabled", String(!movible));
+  barra.tabIndex = movible ? 0 : -1;
+  barra.setAttribute("aria-valuemax", String(Math.round((m && m.duracion_ms ? m.duracion_ms : 0) / 1000)));
+  if (!movible && destino !== null) soltarBarra();
+  $("saltos").hidden = !(m && m.puede.posicion);
+
   const src = m && m.caratula;
   if (src !== caratulaActual) {
     caratulaActual = src;
@@ -180,13 +191,17 @@ function avanzar() {
   const pasado = performance.now() - recibido;
   const m = estado.musica;
   if (m) {
-    let pos = m.posicion_ms + (m.estado === "Playing" ? pasado : 0);
-    if (m.duracion_ms) pos = Math.min(pos, m.duracion_ms);
+    const pos = destino ?? posicionAhora(m);
+    const fraccion = m.duracion_ms ? `${(pos / m.duracion_ms) * 100}%` : "0";
     $("pos").textContent = tiempo(pos);
-    $("relleno").style.width = m.duracion_ms ? `${(pos / m.duracion_ms) * 100}%` : "0";
+    $("relleno").style.width = fraccion;
+    $("perilla").style.left = fraccion;
+    $("barra").setAttribute("aria-valuenow", String(Math.round(pos / 1000)));
+    $("barra").setAttribute("aria-valuetext", m.duracion_ms ? `${tiempo(pos)} de ${tiempo(m.duracion_ms)}` : tiempo(pos));
   } else {
     $("pos").textContent = "";
     $("relleno").style.width = "0";
+    $("perilla").style.left = "0";
   }
   const t = estado.temporizador;
   if (t) {
@@ -206,6 +221,81 @@ $("alternar").addEventListener("click", () => musica("alternar"));
 $("anterior").addEventListener("click", () => musica("anterior"));
 $("siguiente").addEventListener("click", () => musica("siguiente"));
 $("reproductor").addEventListener("change", (e) => api("POST", "/api/musica", { elegir: e.target.value }));
+
+// Posición: la barra se arrastra o se toca (la orden sale al soltar) y los botones saltan 10 s.
+// El teléfono no espera la respuesta: se pone en el destino y el siguiente estado lo corrige.
+function posicionAhora(m) {
+  const pos = m.posicion_ms + (m.estado === "Playing" ? performance.now() - recibido : 0);
+  return m.duracion_ms ? Math.min(pos, m.duracion_ms) : pos;
+}
+function puedeArrastrar(m) {
+  return Boolean(m && m.puede.posicion && m.duracion_ms);
+}
+function fijarPosicion(m, ms) {
+  // como si posicion_ms hubiera llegado en `recibido` (no se toca `recibido`: la usa el temporizador)
+  m.posicion_ms = ms - (m.estado === "Playing" ? performance.now() - recibido : 0);
+  avanzar();
+}
+function irA(ms) {
+  const m = estado?.musica;
+  if (!puedeArrastrar(m)) return;
+  ms = Math.round(Math.min(Math.max(ms, 0), m.duracion_ms));
+  fijarPosicion(m, ms);
+  api("POST", "/api/musica", { posicion_ms: ms, reproductor: m.reproductor });
+}
+function saltar(ms) {
+  const m = estado?.musica;
+  if (!m || !m.puede.posicion) return;
+  let pos = Math.max(posicionAhora(m) + ms, 0);
+  if (m.duracion_ms) pos = Math.min(pos, m.duracion_ms);
+  fijarPosicion(m, pos);
+  api("POST", "/api/musica", { saltar_ms: ms, reproductor: m.reproductor });
+}
+
+const barra = $("barra");
+function msDelDedo(e) {
+  const r = barra.getBoundingClientRect();
+  const f = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
+  return f * estado.musica.duracion_ms;
+}
+function soltarBarra() {
+  destino = null;
+  barra.classList.remove("activa");
+}
+barra.addEventListener("pointerdown", (e) => {
+  if (!puedeArrastrar(estado?.musica)) return;
+  barra.setPointerCapture(e.pointerId);
+  barra.classList.add("activa");
+  destino = msDelDedo(e);
+  avanzar();
+});
+barra.addEventListener("pointermove", (e) => {
+  if (destino === null || !puedeArrastrar(estado?.musica)) return;
+  destino = msDelDedo(e);
+  avanzar();
+});
+barra.addEventListener("pointerup", (e) => {
+  if (destino === null) return;
+  const ms = puedeArrastrar(estado?.musica) ? msDelDedo(e) : null;
+  soltarBarra();
+  if (ms === null) avanzar(); else irA(ms);
+});
+barra.addEventListener("pointercancel", () => { soltarBarra(); avanzar(); });
+barra.addEventListener("keydown", (e) => {
+  const paso = { ArrowLeft: -SALTO_MS, ArrowDown: -SALTO_MS, ArrowRight: SALTO_MS, ArrowUp: SALTO_MS }[e.key];
+  if (paso && puedeArrastrar(estado?.musica)) { e.preventDefault(); saltar(paso); }
+});
+$("atras").addEventListener("click", () => saltar(-SALTO_MS));
+$("adelante").addEventListener("click", () => saltar(SALTO_MS));
+
+// Ver este video: el servidor valida el enlace (solo YouTube) y lo abre en la PC
+$("video-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const url = $("video-url").value.trim();
+  if (!url) { aviso("Pega el enlace de un video de YouTube.", true); return; }
+  const r = await api("POST", "/api/abrir", { url });
+  if (r) { $("video-url").value = ""; $("video-url").blur(); aviso("Abriendo en la PC…"); }
+});
 
 // Volumen: como mucho un envío cada 120 ms mientras se arrastra, y siempre el último valor
 let envioVol = null, ultimoVol = null, enVuelo = false;

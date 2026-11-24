@@ -1,6 +1,7 @@
 """El centro del control remoto: junta todo lo que ve y hace el teléfono.
 
-- **Música:** `ClienteMpris` (reproductores.py).
+- **Música:** `ClienteMpris` (reproductores.py). «Ver este video» valida el enlace (abrir.py) y lo
+  abre con `systemd-run --user`.
 - **Volumen:** el bus `elena_musica` en el `Grafo`, que sigue `pw-dump --monitor`; los cambios van
   por pactl (`acciones.cmd_volumen`, un valor por canal con `modelo.escalar`).
 - **Temporizador:** el modelo puro (temporizador.py), con un paso cada 0.5 s mientras hay uno.
@@ -24,6 +25,7 @@ from pathlib import Path
 from elena import acciones, tope, vm
 from elena.modelo import ErrorElena, Grafo, Nodo, escalar
 from elena.monitor import Lote, seguir
+from elena.remoto import abrir
 from elena.remoto.acceso import CARPETA
 from elena.remoto.reproductores import ClienteMpris
 from elena.remoto.temporizador import Accion, Entorno, Temporizador
@@ -74,6 +76,11 @@ class Sistema:
 
     def apagar_pc(self) -> None:
         acciones.ejecutar(["systemctl", "poweroff"])
+
+    def abrir(self, cmd: list[str]) -> None:
+        """Lanza `cmd` en su propia unidad de systemd: si abre el navegador, no queda dentro del
+        servicio elena-remoto (moriría con él) ni hay que esperarlo."""
+        acciones.ejecutar(["systemd-run", "--user", "--collect", "--quiet", "--", *cmd])
 
 
 def subprocess_ok(cmd: list[str]) -> bool:
@@ -233,7 +240,9 @@ class Centro:
         pista = restante = None
         if r is not None:
             md = r.metadata
-            pista = str(md.get("mpris:trackid") or (md.get("xesam:title"), md.get("xesam:artist")))
+            # El trackid solo no basta: el de Zen es el mismo para cualquier video
+            pista = json.dumps([md.get(k) for k in ("mpris:trackid", "xesam:title", "xesam:artist", "xesam:url")],
+                               ensure_ascii=False, default=str)
             duracion = md.get("mpris:length")
             if isinstance(duracion, int) and duracion > 0:
                 restante = max(duracion - self.cliente.modelo.posicion_ahora(r), 0) // 1000
@@ -279,6 +288,18 @@ class Centro:
 
     async def musica(self, orden: str, reproductor: str | None = None) -> None:
         await self.cliente.orden(orden, reproductor)
+
+    async def posicion(self, posicion_ms: int, reproductor: str | None = None) -> None:
+        await self.cliente.posicion(posicion_ms, reproductor)
+
+    async def saltar(self, saltar_ms: int, reproductor: str | None = None) -> None:
+        await self.cliente.saltar(saltar_ms, reproductor)
+
+    async def abrir(self, texto: str) -> str:
+        """Abre en la PC el video de YouTube de `texto`; devuelve la URL limpia."""
+        url = abrir.url_de_youtube(texto)
+        await asyncio.to_thread(self.sistema.abrir, abrir.comando(url))
+        return url
 
     def elegir(self, reproductor: str | None) -> None:
         self.cliente.elegir(reproductor)

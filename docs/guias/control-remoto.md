@@ -1,7 +1,8 @@
 # Guía: el control remoto de música (teléfono)
 
 Una página web que sirve la PC en la red de casa para usar el teléfono como control remoto de música:
-- **Música:** la canción, el artista, el álbum, la carátula y el avance, con play/pausa, siguiente y anterior.
+- **Música:** la canción, el artista, el álbum, la carátula y el avance, con play/pausa, siguiente y anterior. Si el reproductor lo permite (el navegador sí, Apple Music no), también se mueve la posición: con la barra o con ±10 s.
+- **Ver este video:** pegas un enlace de YouTube y se abre en la PC.
 - **Volumen:** el del bus «ELENA · Música» y su silencio.
 - **Temporizador para dormir:** baja el volumen poco a poco, pausa y deja el volumen como estaba; según el nivel, también apaga la VM y suspende o apaga la PC.
 - **Equipo:** encender y apagar la VM, y suspender o apagar la PC.
@@ -12,7 +13,8 @@ Una página web que sirve la PC en la red de casa para usar el teléfono como co
 
 ```
 Teléfono (navegador) ── HTTP + WebSocket, con cookie ──▶ elena remoto (servicio elena-remoto, puerto 8765)
-                                                           ├─ música: MPRIS por D-Bus (Apple Music (ELENA), Cider…)
+                                                           ├─ música: MPRIS por D-Bus (Apple Music (ELENA), Cider, el navegador…)
+                                                           ├─ ver este video: ELENA_REMOTO_ABRIR con systemd-run --user
                                                            ├─ volumen: bus elena_musica (pw-dump y pactl)
                                                            ├─ temporizador (corre en la PC)
                                                            ├─ VM: systemctl --user start|stop elena-vm
@@ -72,7 +74,12 @@ El servidor escucha **solo en IPv4**. Si la PC tiene una IPv6 global, escuchar a
 
 - **Qué muestra:** carátula, título, artista · álbum, y el avance con el tiempo transcurrido y la duración.
 - **Botones:** anterior, play/pausa y siguiente. Se apagan los que el reproductor no permite.
-- **No se puede adelantar:** la barra solo muestra el avance, porque Apple Music para Windows no permite cambiar la posición.
+- **Moverse en la canción:** si el reproductor lo permite, la barra muestra una perilla.
+  - **Arrastra o toca** un punto de la barra. La orden sale al soltar, no mientras arrastras: cada salto obliga al reproductor a volver a cargar.
+  - **«−10 s» y «+10 s»**, debajo de la barra, saltan desde donde va. También funcionan con un video en directo, que no tiene duración y por eso no se puede arrastrar.
+  - Con un teclado, las flechas sobre la barra también saltan 10 s.
+- **Qué reproductores lo permiten:** los que publican `CanSeek` en MPRIS. El navegador lo permite en YouTube y en la mayoría de los reproductores web, mpv también. **Apple Music de la VM no:** Apple Music para Windows no deja cambiar la posición, así que su barra solo muestra el avance y no hay botones.
+- **Con YouTube en Zen o Firefox,** la duración llega unos segundos después de que arranca el video: mientras, la barra no se puede arrastrar.
 - **Varios reproductores:** si hay más de uno abierto (Cider, el navegador), arriba aparece un selector. Si no eliges ninguno, el actual es:
   1. el que suena, con Apple Music (ELENA) primero;
   2. Apple Music (ELENA);
@@ -84,9 +91,62 @@ El servidor escucha **solo en IPv4**. Si la PC tiene una IPv6 global, escuchar a
 - **El control y el botón** son el volumen y el silencio del bus **«ELENA · Música»**, en % como pavucontrol y la consola. Apple Music va al 100 % dentro de Windows; el volumen real es el del bus.
 - **El balance entre canales se conserva** (`modelo.escalar`), igual que en la consola.
 
+### Ver este video
+
+Para ver YouTube desde el sillón sin mouse ni teclado: copia el enlace en el teléfono (por ejemplo, con «Compartir → Copiar enlace» en la app de YouTube), pégalo en el campo y toca «Abrir». El video se abre en el navegador de la PC, aparece arriba como reproductor y se maneja con la barra y los ±10 s.
+
+- **Solo videos de YouTube:** `youtube.com/watch?v=…`, `youtu.be/…`, `shorts/…`, `live/…`, `embed/…` y `music.youtube.com`, con o sin `https://`. Se conservan el inicio (`t=`) y la lista (`list=`), y se descarta todo lo demás (`si=`, `feature=`…). Una lista sola, sin video, no se abre.
+- **Cómo se abre:** con el comando de `ELENA_REMOTO_ABRIR`. Por omisión es `xdg-open {url}`, que abre tu navegador predeterminado.
+- **Que el video arranque solo:** los navegadores bloquean por omisión el audio que arranca sin que toques la página. Permítelo para YouTube: en Firefox o Zen, en una pestaña de YouTube, toca el ícono a la izquierda de la dirección y en «Reproducción automática» elige «Permitir audio y video». Sin el permiso, la pestaña abre en pausa y no aparece como reproductor hasta que la toques en la PC.
+
+**Elegir ventana, espacio de trabajo o contenedor.** `xdg-open` abre en la ventana del navegador que usaste al último. Si quieres otra cosa, apunta la variable a un script tuyo en `mise.local.toml` (fuera de git) y reinicia el servicio, que lee la variable al arrancar:
+
+```toml
+[env]
+ELENA_REMOTO_ABRIR = "{{config_root}}/local/abrir-video.sh {url}"
+```
+
+```
+systemctl --user restart elena-remoto
+```
+
+- **El comando no pasa por una shell:** se separa como en la terminal (las comillas agrupan) y `{url}` se reemplaza dentro de su argumento. Sin `{url}`, la URL va al final.
+- **Corre en su propia unidad** de `systemd-run --user`, para que el navegador no quede dentro del servicio del control remoto (se cerraría al reiniciarlo). Su entorno es el de tus servicios de usuario, no el de mise: el script no ve las variables de `mise.toml` y debe usar programas del sistema.
+- **Contenedores de Firefox o Zen:** desde la línea de comandos no se puede elegir contenedor; la pestaña cae en el espacio o contenedor activo de la ventana. Con la extensión «Open external links in a container», un enlace `ext+container:name=<contenedor>&url=<URL codificada>` sí lo elige.
+
+Un ejemplo para Hyprland y Zen: enfoca la ventana del navegador que ya tenga YouTube al frente (si ninguna, la última que usaste) y abre ahí una pestaña. Para Firefox, cambia la clase (`firefox`), el final del título y el comando.
+
+```bash
+#!/usr/bin/env bash
+# local/abrir-video.sh <url>
+set -euo pipefail
+url=${1:?falta la URL}
+
+ventana=$(hyprctl clients -j | python3 -c '
+import json, sys
+nav = [c for c in json.load(sys.stdin) if c["class"] == "zen"]
+yt = [c for c in nav if c["title"].endswith("- YouTube — Zen Browser")]
+elegida = min(yt or nav, key=lambda c: c["focusHistoryID"], default=None)
+print(elegida["address"] if elegida else "")
+')
+
+if [[ -n $ventana ]]; then
+    # Hyprland 0.57 con config en Lua; antes: hyprctl dispatch focuswindow "address:$ventana"
+    hyprctl -q dispatch "hl.dsp.focus({ window = \"address:$ventana\" })" || true
+fi
+exec zen-browser --new-tab "$url"
+```
+
+Para probarlo como lo corre el servicio, sin el teléfono:
+
+```
+systemd-run --user --wait --collect --quiet -- "$PWD/local/abrir-video.sh" 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+```
+
 ### Temporizador
 
 - **Para ponerlo:** toca 15, 30, 45, 60 o 90 minutos, «Fin de canción», o escribe los minutos (de 1 a 720) y toca «Poner».
+- **«Fin de canción»** necesita algo sonando con duración conocida. Con YouTube en el navegador, espera unos segundos después de que arranque el video: la duración llega tarde. Un directo no tiene duración.
 - **Al terminar,** según el nivel que elijas (la página lo recuerda):
 
 | Nivel | Qué hace |
@@ -108,7 +168,8 @@ El servidor escucha **solo en IPv4**. Si la PC tiene una IPv6 global, escuchar a
 - **Si mueves el volumen mientras baja** (desde el teléfono, la consola o pavucontrol), se cancela y se queda el volumen que pusiste.
 - **Si pausas mientras baja,** se cancela y el volumen regresa a como estaba.
 - **«Cancelar» mientras baja** también regresa el volumen.
-- **«Fin de canción»:** si pausas, espera a que la canción termine de verdad. Si la canción cambia antes de tiempo (la posición de Apple Music es estimada), pausa en ese momento; como el volumen ya va en 0, no se oye el inicio de la siguiente.
+- **«Fin de canción»:** si pausas, espera a que la canción termine de verdad. Si la canción cambia antes de tiempo (la posición de Apple Music es estimada), pausa en ese momento; como el volumen ya va en 0, no se oye el inicio de la siguiente. La canción se reconoce por su identificador de MPRIS, título, artista y URL: el navegador usa el mismo identificador para todos los videos.
+- **Si mueves la posición,** «Fin de canción» se ajusta a la nueva hora de fin.
 - **Si Apple Music no pausa,** lo pide otra vez a los 3 s. Si aun así sigue sonando, silencia el bus para no despertarte.
 - **Si el servicio se reinicia a media bajada,** al arrancar regresa el volumen. Un temporizador que todavía no vence se retoma; uno que venció hace más de un minuto se descarta.
 
@@ -127,7 +188,7 @@ El servidor escucha **solo en IPv4**. Si la PC tiene una IPv6 global, escuchar a
 | `journalctl --user -u elena-remoto -f` | El registro en vivo |
 | `mise run remoto qr` | El enlace y el QR para emparejar |
 
-El registro anota los emparejamientos, el temporizador, la VM y la PC; no anota el volumen ni play/pausa. Ejemplo con un temporizador de 1 minuto:
+El registro anota los emparejamientos, los videos abiertos, el temporizador, la VM y la PC; no anota el volumen, play/pausa ni la posición. Ejemplo con un temporizador de 1 minuto:
 
 ```
 Teléfono emparejado: 192.168.1.34
@@ -144,6 +205,8 @@ curl -s -c .cache/tmp/c.txt -o /dev/null "$B/?t=$T"              # emparejar (gu
 curl -s -b .cache/tmp/c.txt $B/api/estado | python3 -m json.tool   # el estado completo
 curl -s -b .cache/tmp/c.txt -H "Origin: $B" -H 'Content-Type: application/json' \
      -d '{"orden": "alternar"}' $B/api/musica                      # play/pausa
+curl -s -b .cache/tmp/c.txt -H "Origin: $B" -H 'Content-Type: application/json' \
+     -d '{"posicion_ms": 90000}' $B/api/musica                     # ir al minuto 1:30 ("saltar_ms": -10000 retrocede)
 rm .cache/tmp/c.txt
 ```
 
@@ -157,6 +220,7 @@ Las rutas y sus cuerpos JSON están en la cabecera de `src/elena/remoto/servidor
 - **Cabeceras:** CSP estricta (solo scripts y estilos propios), `nosniff` y `no-referrer`.
 - **Sin cifrar:** es HTTP simple, así que el token viaja sin cifrar por el Wi-Fi de casa. Se aceptó porque no sale de la red; HTTPS con un certificado propio llenaría el teléfono de advertencias.
 - **Confirmaciones:** apagar o suspender exige mantener presionado en la página, y el servidor también pide `"confirmar": true`.
+- **Ver este video:** el servidor acepta solo videos de YouTube, saca el ID del video y arma la URL de nuevo; nunca pasa al comando el texto que llegó, y el comando no pasa por una shell. Con una cookie robada, lo más que se puede hacer es abrirte un video de YouTube.
 
 ## Quitarlo
 
@@ -176,6 +240,12 @@ Lo detiene, lo deshabilita y borra el enlace de `~/.config/systemd/user/`. `mise
 - **«Falta emparejar este teléfono»:** la cookie no está (otro navegador, o borraste los datos del sitio) o el token cambió. Vuelve a escanear el QR (`mise run remoto qr`).
 - **«Enlace vencido»:** el QR era de un token anterior. Genera otro con `mise run remoto qr`.
 - **«Nada sonando» con Apple Music abierta:** el puente de la VM no publica el reproductor. Revisa `mise run elena -- vm musica estado` y el servicio `elena-vm-musica` ([guía de la VM](vm-apple-music-atmos.md#apple-music-en-los-widgets-de-linux)).
+- **La barra no se puede arrastrar ni hay «±10 s»:** el reproductor no publica `CanSeek` (Apple Music de la VM, algunos sitios web). Si hay botones pero la barra no se arrastra, todavía no llega la duración (YouTube, los primeros segundos) o es un directo.
+- **«Ver este video» no hace nada:**
+  - El error de la página dice qué falló. «Solo se pueden abrir enlaces de YouTube» o «no es de un video»: el enlace no es de un video de YouTube.
+  - Sin error, pero no abre: el comando falló dentro de su unidad. Búscalo en `journalctl --user --since -5min` y prueba el comando con `systemd-run` (arriba).
+  - Abre, pero en pausa y no aparece como reproductor: falta el permiso de reproducción automática.
+  - Cambiaste `ELENA_REMOTO_ABRIR` y sigue usando el comando anterior: `systemctl --user restart elena-remoto`.
 - **El volumen sale con «—»:** no existe el bus `elena_musica`. ¿Falta `mise run aplicar`?
 - **«Encender» está apagado:** falta el servicio de la VM (`mise run vm:lanzador instalar`). Sin él, QEMU quedaría dentro del servicio del control remoto.
 - **Cambiaste el código del servidor o de la página:** `systemctl --user restart elena-remoto`. La página nueva llega al recargarla (se sirve con `no-cache`).
@@ -184,12 +254,14 @@ Lo detiene, lo deshabilita y borra el enlace de `~/.config/systemd/user/`. `mise
 
 ## Sin probar todavía
 
-Probados: emparejar, la página, el temporizador en el nivel «Pausar» y cancelar. Falta probar en un equipo real los niveles **+ apagar VM**, **+ suspender PC** y **+ apagar PC**, **«Fin de canción»**, encender y apagar la VM desde el teléfono, y suspender o apagar con la VM encendida.
+Probados: emparejar, la página, el temporizador en los niveles «Pausar» y **+ apagar VM**, «Fin de canción» con Apple Music y con YouTube en Zen, cancelar, la barra y los ±10 s con YouTube en Zen, Apple Music sin barra, y «Ver este video». Falta probar en un equipo real los niveles **+ suspender PC** y **+ apagar PC**, encender y apagar la VM desde el teléfono, suspender o apagar con la VM encendida, y la barra con otros reproductores (mpv, sitios sin `CanSeek`).
 
 ## Límites
 
 - Solo en la red de casa.
 - No se puede navegar ni buscar en la biblioteca de Apple Music.
-- No se puede adelantar, ni hay aleatorio o repetir: Apple Music no los publica.
+- Con Apple Music no se puede adelantar, ni hay aleatorio o repetir: no los publica. Ningún reproductor tiene aleatorio o repetir en la página.
+- «Ver este video» solo abre YouTube, y el enlace se pega a mano: «Compartir» directo desde la app de YouTube pediría instalar la página como app, y Android solo lo deja con HTTPS.
+- No hay mouse ni teclado: no se puede poner el video en pantalla completa ni navegar en la página de YouTube.
 - No hay controles en la pantalla de bloqueo del teléfono.
 - Solo controla el bus de música: los otros buses y las escenas se manejan en la consola.

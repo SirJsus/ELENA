@@ -36,6 +36,9 @@ PYTHONPYCACHEPREFIX = "{{config_root}}/.cache/pycache"
 # Control remoto de música (elena remoto). Solo IPv4 en la LAN; la regla del firewall va a mano
 # (ELENA no toca /etc) y debe usar este mismo puerto. Guía: docs/guias/control-remoto.md
 ELENA_REMOTO_PUERTO = "{{ get_env(name='ELENA_REMOTO_PUERTO', default='8765') }}"
+# «Ver este video» del control remoto: el comando que abre el enlace de YouTube ({url}, ya limpio).
+# Para elegir ventana, espacio o contenedor, apúntalo a un script tuyo en mise.local.toml.
+ELENA_REMOTO_ABRIR = "{{ get_env(name='ELENA_REMOTO_ABRIR', default='xdg-open {url}') }}"
 
 # ---------- Equipo, hardware 5.1 y buses ----------
 

@@ -28,9 +28,13 @@ class Reloj:
 
 
 def props(estado="Playing", titulo="Feo", artista=("Morat",), album="Feo - Single", largo=215_000_000,
-          arte=None, **can) -> dict:
-    md = {"mpris:trackid": "/x/1", "xesam:title": titulo, "xesam:artist": list(artista),
+          arte=None, trackid="/x/1", **can) -> dict:
+    md = {"mpris:trackid": trackid, "xesam:title": titulo, "xesam:artist": list(artista),
           "xesam:album": album, "mpris:length": largo}
+    if largo is None:
+        del md["mpris:length"]
+    if trackid is None:
+        del md["mpris:trackid"]
     if arte:
         md["mpris:artUrl"] = arte
     base = {"CanPlay": True, "CanPause": True, "CanGoNext": True, "CanGoPrevious": True,
@@ -156,6 +160,45 @@ def test_cambio_de_desconocido_no_hace_nada():
     assert not m.baja(PREFERIDO)
 
 
+def test_destino_dentro_de_la_cancion():
+    reloj = Reloj()
+    m = Reproductores(reloj=reloj)
+    m.alta(PREFERIDO, props(), posicion_us=60_000_000)
+    r = m.todos[PREFERIDO]
+    assert m.destino(r, posicion_ms=83_000) == 83_000_000
+    assert m.destino(r, posicion_ms=999_000) == 215_000_000          # no pasa de la duración
+    assert m.destino(r, posicion_ms=-5) == 0
+    reloj.t += 2                                                      # sonando: cuenta lo que avanzó
+    assert m.destino(r, saltar_ms=10_000) == 72_000_000
+    assert m.destino(r, saltar_ms=-90_000) == 0
+    m.alta(PREFERIDO, props(largo=None), posicion_us=60_000_000)      # un directo: solo se limita en 0
+    assert m.destino(m.todos[PREFERIDO], saltar_ms=10_000_000) == 10_060_000_000
+
+
+def test_pista_para_setposition():
+    m = Reproductores()
+    m.alta(PREFERIDO, props())
+    assert m.todos[PREFERIDO].pista == "/x/1"
+    m.alta(PREFERIDO, props(trackid=rep.SIN_PISTA))
+    assert m.todos[PREFERIDO].pista is None
+    m.alta(PREFERIDO, props(trackid=None))
+    assert m.todos[PREFERIDO].pista is None
+
+
+def test_recien_salto():
+    reloj = Reloj()
+    m = Reproductores(reloj=reloj)
+    m.alta(PREFERIDO, props())
+    r = m.todos[PREFERIDO]
+    assert not m.recien_salto(r)
+    m.posicion(PREFERIDO, 5_000_000)                 # una lectura normal no cuenta como salto
+    assert not m.recien_salto(r)
+    m.posicion(PREFERIDO, 90_000_000, salto=True)
+    assert m.recien_salto(r)
+    reloj.t += rep.TRAS_SALTO
+    assert not m.recien_salto(r)
+
+
 # ---------- el cliente, contra un dbus-daemon privado ----------
 
 CONFIG = """<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
@@ -211,10 +254,12 @@ class FalsoReproductor(ServiceInterface):
         self.estado = "Paused"
         self.titulo = "Feo"
         self.posicion = 41_000_000
-        self.llamadas: list[str] = []
+        self.trackid = "/x/1"
+        self.puede_mover = True
+        self.llamadas: list = []
 
     def _md(self) -> dict:
-        return {"mpris:trackid": Variant("o", "/x/1"), "xesam:title": Variant("s", self.titulo),
+        return {"mpris:trackid": Variant("o", self.trackid), "xesam:title": Variant("s", self.titulo),
                 "xesam:artist": Variant("as", ["Morat"]), "mpris:length": Variant("x", 215_000_000)}
 
     def poner(self, estado: str) -> None:
@@ -233,9 +278,25 @@ class FalsoReproductor(ServiceInterface):
         self.posicion = 0
         self.emit_properties_changed({"Metadata": self._md()})
 
+    @dbus_method()
+    def SetPosition(self, pista: "o", posicion: "x"):
+        self.llamadas.append(("SetPosition", pista, posicion))
+        self.posicion = posicion
+        self.Seeked(posicion)
+
+    @dbus_method()
+    def Seek(self, desplazamiento: "x"):
+        self.llamadas.append(("Seek", desplazamiento))
+        self.posicion += desplazamiento
+        self.Seeked(self.posicion)
+
     @dbus_signal()
     def Seeked(self, posicion: int) -> "x":
         return posicion
+
+    @dbus_property(access=PropertyAccess.READ)
+    def CanSeek(self) -> "b":
+        return self.puede_mover
 
     @dbus_property(access=PropertyAccess.READ)
     def PlaybackStatus(self) -> "s":
@@ -352,3 +413,65 @@ async def test_ignora_lo_que_no_es_mpris(bus_privado, cliente):
         assert cliente.modelo.todos == {}
     finally:
         otro.disconnect()
+
+
+async def test_posicion_y_saltos(falso, cliente):
+    bus, falso_r = falso
+    await bus.request_name(PREFERIDO)
+    await cliente.conectar()
+    await hasta(lambda: (cliente.modelo.vista()["musica"] or {}).get("posicion_ms") == 41_000)
+    assert cliente.modelo.vista()["musica"]["puede"]["posicion"] is True
+
+    await cliente.posicion(83_000)
+    assert falso_r.llamadas == [("SetPosition", "/x/1", 83_000_000)]
+    assert cliente.modelo.vista()["musica"]["posicion_ms"] == 83_000     # sin esperar a Seeked
+
+    await cliente.saltar(-10_000, reproductor="elena_applemusic")        # en pausa: desde 83 s
+    assert falso_r.llamadas[-1] == ("SetPosition", "/x/1", 73_000_000)   # absoluto, no Seek
+    await cliente.posicion(999_000)
+    assert falso_r.llamadas[-1] == ("SetPosition", "/x/1", 215_000_000)  # no pasa de la duración
+
+
+async def test_seek_sin_trackid(falso, cliente):
+    bus, falso_r = falso
+    falso_r.trackid = rep.SIN_PISTA
+    await bus.request_name(PREFERIDO)
+    await cliente.conectar()
+    await hasta(lambda: (cliente.modelo.vista()["musica"] or {}).get("posicion_ms") == 41_000)
+    await cliente.posicion(50_000)
+    assert falso_r.llamadas == [("Seek", 9_000_000)]
+    await hasta(lambda: falso_r.posicion == 50_000_000)
+
+
+async def test_no_mueve_sin_canseek(falso, cliente):
+    bus, falso_r = falso
+    falso_r.puede_mover = False
+    await bus.request_name(PREFERIDO)
+    await cliente.conectar()
+    await hasta(lambda: cliente.modelo.actual is not None)
+    with pytest.raises(ErrorElena, match="no deja cambiar la posición"):
+        await cliente.posicion(10_000)
+    with pytest.raises(ErrorElena, match="no deja cambiar la posición"):
+        await cliente.saltar(10_000)
+    assert falso_r.llamadas == []
+
+
+async def test_no_lee_position_justo_tras_un_salto(falso, bus_privado):
+    """Zen puede dar Position = 0 justo después de un salto: durante TRAS_SALTO manda el destino."""
+    bus, falso_r = falso
+    reloj = Reloj()
+    c = ClienteMpris(modelo=Reproductores(reloj=reloj), direccion=bus_privado)
+    try:
+        await bus.request_name(PREFERIDO)
+        await c.conectar()
+        await hasta(lambda: (c.modelo.vista()["musica"] or {}).get("posicion_ms") == 41_000)
+        await c.posicion(120_000)
+        await asyncio.sleep(0.1)                      # que llegue el Seeked
+        falso_r.posicion = 0
+        await c._leer_posicion(PREFERIDO)
+        assert c.modelo.todos[PREFERIDO].posicion_us == 120_000_000
+        reloj.t += rep.TRAS_SALTO
+        await c._leer_posicion(PREFERIDO)
+        assert c.modelo.todos[PREFERIDO].posicion_us == 0
+    finally:
+        c.cerrar()

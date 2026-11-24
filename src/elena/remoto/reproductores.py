@@ -8,10 +8,12 @@ Noctalia o playerctl, y de paso a cualquier otro reproductor (Cider, el navegado
   sin bus.
 - `ClienteMpris` lo alimenta desde D-Bus con mensajes de bajo nivel (sin introspección): sigue
   `NameOwnerChanged` de `org.mpris.MediaPlayer2.*` y las señales de /org/mpris/MediaPlayer2, y
-  manda las órdenes (PlayPause, Next…).
+  manda las órdenes (PlayPause, Next…) y los cambios de posición.
 - MPRIS no avisa la posición con PropertiesChanged: se lee al conectar, cuando cambia el estado o
   la canción, con cada `Seeked` y cada 5 s mientras suena el actual. El teléfono la interpola con
-  `medido`.
+  `medido`. Durante 2 s después de un salto no se lee: Zen puede dar 0 justo después.
+- Los cambios de posición van con `SetPosition` (absoluto): el `Seek` de YouTube en Zen ignora el
+  desplazamiento y mueve siempre 5 s. `Seek` queda para los reproductores sin `mpris:trackid`.
 Spec: https://specifications.freedesktop.org/mpris-spec/latest/
 """
 
@@ -39,6 +41,8 @@ RAIZ_IFAZ = "org.mpris.MediaPlayer2"
 REPRODUCTOR_IFAZ = "org.mpris.MediaPlayer2.Player"
 PROPIEDADES_IFAZ = "org.freedesktop.DBus.Properties"
 SINCRONIZAR = 5.0                           # s entre lecturas de Position mientras suena el actual
+TRAS_SALTO = 2.0                            # s después de un salto en que no se lee Position
+SIN_PISTA = "/org/mpris/MediaPlayer2/TrackList/NoTrack"
 ESTADOS = ("Playing", "Paused", "Stopped")
 
 # Orden del control remoto → método de MPRIS y el permiso (Can*) que lo habilita
@@ -94,6 +98,7 @@ class Reproductor:
     posicion_us: int = 0
     medido: float = 0.0              # cuándo se leyó posicion_us (reloj del modelo, epoch en s)
     sono: float = 0.0                # la última vez que pasó a Playing (para elegir el actual)
+    salto: float | None = None       # cuándo saltó la posición (Seeked o una orden), reloj del modelo
 
     @property
     def estado(self) -> str:
@@ -109,6 +114,17 @@ class Reproductor:
     def caratula(self) -> str | None:
         url = self.metadata.get("mpris:artUrl")
         return url if isinstance(url, str) and url else None
+
+    @property
+    def pista(self) -> str | None:
+        """El `mpris:trackid` si sirve para `SetPosition`."""
+        t = self.metadata.get("mpris:trackid")
+        return t if isinstance(t, str) and t.startswith("/") and t != SIN_PISTA else None
+
+    @property
+    def duracion_us(self) -> int | None:
+        d = self.metadata.get("mpris:length")
+        return d if isinstance(d, int) and not isinstance(d, bool) and d > 0 else None
 
     def puede(self, permiso: str) -> bool:
         return bool(self.propiedades.get(permiso, False))
@@ -160,12 +176,14 @@ class Reproductores:
             r.posicion_us, r.medido = 0, self.reloj()   # canción nueva; la posición real llega aparte
         return True
 
-    def posicion(self, nombre: str, posicion_us: int) -> bool:
-        """Position leída o recibida con Seeked."""
+    def posicion(self, nombre: str, posicion_us: int, salto: bool = False) -> bool:
+        """Position leída, o un salto (Seeked o una orden del teléfono)."""
         r = self.todos.get(nombre)
         if r is None:
             return False
         r.posicion_us, r.medido = max(int(posicion_us), 0), self.reloj()
+        if salto:
+            r.salto = r.medido
         return True
 
     def elegir(self, corto_o_nombre: str | None) -> bool:
@@ -184,6 +202,20 @@ class Reproductores:
         if r.estado != "Playing":
             return r.posicion_us
         return r.posicion_us + int((self.reloj() - r.medido) * 1_000_000)
+
+    def recien_salto(self, r: Reproductor) -> bool:
+        return r.salto is not None and self.reloj() - r.salto < TRAS_SALTO
+
+    def destino(self, r: Reproductor, posicion_ms: int | None = None, saltar_ms: int | None = None) -> int:
+        """La posición (µs) a la que hay que ir: absoluta o relativa a la de ahora, dentro de la canción
+        (sin duración, como un directo, solo se limita en 0)."""
+        if posicion_ms is not None:
+            us = int(posicion_ms) * 1000
+        else:
+            us = self.posicion_ahora(r) + int(saltar_ms or 0) * 1000
+        if r.duracion_us is not None:
+            us = min(us, r.duracion_us)
+        return max(us, 0)
 
     @property
     def actual(self) -> Reproductor | None:
@@ -213,7 +245,7 @@ class Reproductores:
         if r is None:
             return {"musica": None, "reproductores": lista}
         md = r.metadata
-        duracion = md.get("mpris:length")
+        duracion = r.duracion_us
         caratula = r.caratula
         if caratula and caratula.startswith("file://"):
             caratula = "/caratula?v=" + hashlib.sha1(caratula.encode()).hexdigest()[:12]
@@ -226,7 +258,7 @@ class Reproductores:
             "titulo": _texto(md.get("xesam:title")),
             "artista": _texto(md.get("xesam:artist")),
             "album": _texto(md.get("xesam:album")),
-            "duracion_ms": int(duracion) // 1000 if isinstance(duracion, int) and duracion > 0 else None,
+            "duracion_ms": duracion // 1000 if duracion else None,
             "posicion_ms": self.posicion_ahora(r) // 1000,
             "medido": int(self.reloj() * 1000),
             "caratula": caratula,
@@ -290,9 +322,7 @@ class ClienteMpris:
 
     # ----- órdenes -----
 
-    async def orden(self, accion: str, reproductor: str | None = None) -> None:
-        if accion not in ORDENES:
-            raise ErrorElena(f"No conozco la orden «{accion}».")
+    def _reproductor(self, reproductor: str | None) -> Reproductor:
         if reproductor:
             nombre = reproductor if reproductor.startswith(PREFIJO) else PREFIJO + reproductor
             r = self.modelo.todos.get(nombre)
@@ -300,10 +330,40 @@ class ClienteMpris:
             r = self.modelo.actual
         if r is None:
             raise ErrorElena("No hay ningún reproductor abierto.")
+        return r
+
+    async def orden(self, accion: str, reproductor: str | None = None) -> None:
+        if accion not in ORDENES:
+            raise ErrorElena(f"No conozco la orden «{accion}».")
+        r = self._reproductor(reproductor)
         metodo, _ = ORDENES[accion]
         respuesta = await self._llamar(r.nombre, REPRODUCTOR_IFAZ, metodo, "", [])
         if respuesta.message_type == MessageType.ERROR:
             raise ErrorElena(f"{r.identidad or corto(r.nombre)} no aceptó «{accion}»: {respuesta.body}")
+
+    async def posicion(self, posicion_ms: int, reproductor: str | None = None) -> None:
+        """Va a `posicion_ms` de la canción."""
+        r = self._reproductor(reproductor)
+        await self._mover(r, self.modelo.destino(r, posicion_ms=posicion_ms))
+
+    async def saltar(self, saltar_ms: int, reproductor: str | None = None) -> None:
+        """Avanza (o retrocede, con negativos) `saltar_ms` desde la posición de ahora."""
+        r = self._reproductor(reproductor)
+        await self._mover(r, self.modelo.destino(r, saltar_ms=saltar_ms))
+
+    async def _mover(self, r: Reproductor, destino_us: int) -> None:
+        quien = r.identidad or corto(r.nombre)
+        if not r.puede("CanSeek"):
+            raise ErrorElena(f"{quien} no deja cambiar la posición.")
+        if r.pista:
+            respuesta = await self._llamar(r.nombre, REPRODUCTOR_IFAZ, "SetPosition", "ox", [r.pista, destino_us])
+        else:
+            desplazamiento = destino_us - self.modelo.posicion_ahora(r)
+            respuesta = await self._llamar(r.nombre, REPRODUCTOR_IFAZ, "Seek", "x", [desplazamiento])
+        if respuesta.message_type == MessageType.ERROR:
+            raise ErrorElena(f"{quien} no aceptó el cambio de posición: {respuesta.body}")
+        # Sin esperar a Seeked: el teléfono ve el destino enseguida (Seeked lo corrige si hace falta)
+        self._avisar(self.modelo.posicion(r.nombre, destino_us, salto=True))
 
     def elegir(self, reproductor: str | None) -> None:
         if self.modelo.elegir(reproductor):
@@ -362,11 +422,15 @@ class ClienteMpris:
             self.modelo.todos[nombre].identidad = str(identidad)
             self._avisar(True)
         if vigente():
-            await self._leer_posicion(nombre)
+            await self._leer_posicion(nombre, forzar=True)
 
-    async def _leer_posicion(self, nombre: str) -> None:
+    async def _leer_posicion(self, nombre: str, forzar: bool = False) -> None:
+        """Lee Position, salvo justo después de un salto (manda el de Seeked) si no se `forzar`."""
+        r = self.modelo.todos.get(nombre)
+        if r is None or (not forzar and self.modelo.recien_salto(r)):
+            return
         posicion = await self._obtener(nombre, REPRODUCTOR_IFAZ, "Position")
-        if isinstance(posicion, int):
+        if isinstance(posicion, int) and (forzar or not self.modelo.recien_salto(r)):
             self._avisar(self.modelo.posicion(nombre, posicion))
 
     def _nombres_de(self, remitente: str | None) -> set[str]:
@@ -393,16 +457,16 @@ class ClienteMpris:
             for nombre in self._nombres_de(m.sender):
                 self._avisar(self.modelo.cambio(nombre, cambiadas))
                 if invalidadas or {"PlaybackStatus", "Metadata"} & cambiadas.keys():
-                    self._tarea(self._releer(nombre, invalidadas))
+                    self._tarea(self._releer(nombre, invalidadas, forzar="Metadata" in cambiadas))
         elif m.member == "Seeked" and m.interface == REPRODUCTOR_IFAZ:
             for nombre in self._nombres_de(m.sender):
-                self._avisar(self.modelo.posicion(nombre, m.body[0]))
+                self._avisar(self.modelo.posicion(nombre, m.body[0], salto=True))
 
-    async def _releer(self, nombre: str, invalidadas: list[str]) -> None:
+    async def _releer(self, nombre: str, invalidadas: list[str], forzar: bool = False) -> None:
         """Tras un cambio de estado o canción: la posición real y las propiedades invalidadas."""
         with contextlib.suppress(ErrorElena):
             for p in invalidadas:
                 valor = await self._obtener(nombre, REPRODUCTOR_IFAZ, p)
                 if valor is not None:
                     self._avisar(self.modelo.cambio(nombre, {p: valor}))
-            await self._leer_posicion(nombre)
+            await self._leer_posicion(nombre, forzar=forzar)

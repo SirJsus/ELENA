@@ -92,6 +92,8 @@ Probados con PipeWire 1.6.10–1.6.11, WirePlumber 0.5.18 y QEMU 11.1.
 ### Otros
 
 - MPRIS no avisa `Position` con PropertiesChanged: el cliente la lee al conectar, al cambiar el estado o la canción, con `Seeked` y cada 5 s mientras suena.
+- Zen 1.24 (Firefox) con YouTube: `mpris:trackid` es **fijo** (`/org/mpris/MediaPlayer2/firefox`, igual para todo video) y `SetPosition` no lo revisa. **`Seek(offset)` ignora el desplazamiento** y mueve siempre 5 s (los saltos de YouTube): los saltos van con `SetPosition`. Cada salto emite de 2 a 4 `Seeked`, y `Position` (en segundos enteros) puede leerse 0 justo después. Con la reproducción automática bloqueada (por omisión), una pestaña nueva no crea sesión de medios y MPRIS sigue en la anterior; al arrancar, `mpris:length` y `Position` llegan varios segundos después.
+- Hyprland 0.57 con config en Lua: `hyprctl dispatch` recibe un despachador de Lua (`hyprctl dispatch 'hl.dsp.focus({ window = "address:0x…" })'`); la sintaxis vieja (`focuswindow address:…`) sale con código 7.
 - `dbus-fast` lee las firmas D-Bus de las anotaciones de texto (`-> "s"`). Las pruebas de D-Bus usan un `dbus-daemon` con config propia y socket en `.cache/pytest/` (el `session.conf` del sistema escucha en `/tmp`).
 - Muchos teléfonos no resuelven `<host>.local` (mDNS): el QR del control remoto lleva la IP.
 - speaker-test a veces ignora SIGTERM: se manda SIGTERM a su grupo y SIGKILL a lo que quede (`acciones.detener`).

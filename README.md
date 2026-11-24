@@ -15,7 +15,7 @@ Todo vive dentro del repositorio: no instala paquetes del sistema, no toca `/etc
 - **El vigilante.** Un servicio de usuario que aplica las reglas fijas («esta app siempre a este bus»), cuida el tope de volumen y baja la música estéreo para que suene parejo con la multicanal.
 - **Solo audífonos.** Con una tecla, Música, Juegos y Sistema pasan de las bocinas a los audífonos, en estéreo o con surround binaural (HRTF).
 - **Mezcla para visualizadores.** Los fondos animados y espectros que graban «el sonido del sistema» ven también la música y los juegos.
-- **Control remoto.** Una página web para el teléfono, en la red de casa: lo que suena, play/pausa, volumen, un temporizador para dormir y apagar la VM o la PC.
+- **Control remoto.** Una página web para el teléfono, en la red de casa: lo que suena, play/pausa, la posición (si el reproductor lo permite), volumen, abrir en la PC un video de YouTube, un temporizador para dormir y apagar la VM o la PC.
 - **Apple Music Atmos en 5.1 (opcional).** Una VM de Windows 10 IoT LTSC 2021 en una caja de Distrobox, con audio USB multicanal hacia el bus Música, un lanzador que la hace parecer una app más y un puente que publica Apple Music como reproductor MPRIS (teclas multimedia y widgets del escritorio).
 
 ```
