@@ -1,0 +1,90 @@
+S   ID  QUANT   RATE    WAIT    BUSY   W/Q   B/Q  ERR FORMAT           NAME 
+C   42      0      0    ---     ---   ---   ---     0                  Dummy-Driver
+C   43      0      0    ---     ---   ---   ---     0                  Freewheel-Driver
+C   44      0      0    ---     ---   ---   ---     0                  elena_voz
+C   52      0      0    ---     ---   ---   ---     0                  elena_musica.salida
+C   53      0      0    ---     ---   ---   ---     0                  elena_musica
+C   55      0      0    ---     ---   ---   ---     0                  elena_juegos.salida
+C   56      0      0    ---     ---   ---   ---     0                  elena_juegos
+C   58      0      0    ---     ---   ---   ---     0                  elena_sistema.salida
+C   59      0      0    ---     ---   ---   ---     0                  elena_sistema
+C   62      0      0    ---     ---   ---   ---     0                  elena_chat.salida
+C   63      0      0    ---     ---   ---   ---     0                  elena_chat
+C   67      0      0    ---     ---   ---   ---     0                  elena_limpio.captura
+C   68      0      0    ---     ---   ---   ---     0                  elena_limpio
+C   69      0      0    ---     ---   ---   ---     0                  elena_limpio.referencia
+C   71      0      0    ---     ---   ---   ---     0                  elena_directo
+C   72      0      0    ---     ---   ---   ---     0                  elena_directo.entrada
+C   74      0      0    ---     ---   ---   ---     0                  elena_limpio_a_voz
+C   75      0      0    ---     ---   ---   ---     0                  elena_limpio_a_voz.entrada
+C   77      0      0    ---     ---   ---   ---     0                  elena_mic
+C   78      0      0    ---     ---   ---   ---     0                  elena_mic.mezcla
+C   80      0      0    ---     ---   ---   ---     0                  elena_mic_web
+C   81      0      0    ---     ---   ---   ---     0                  elena_mic_web.mezcla
+C   83      0      0    ---     ---   ---   ---     0                  elena_voz_a_mic
+C   84      0      0    ---     ---   ---   ---     0                  elena_voz_a_mic.entrada
+C   87      0      0    ---     ---   ---   ---     0                  elena_voz_a_mic_web
+C   88      0      0    ---     ---   ---   ---     0                  elena_voz_a_mic_web.entrada
+C   89      0      0    ---     ---   ---   ---     0                  elena_puente_navegador
+C   90      0      0    ---     ---   ---   ---     0                  elena_puente_navegador.entrada
+C   91      0      0    ---     ---   ---   ---     0                  elena_puente_chat
+C   92      0      0    ---     ---   ---   ---     0                  elena_puente_chat.entrada
+C  103      0      0    ---     ---   ---   ---     0                  Midi-Bridge
+C  106      0      0    ---     ---   ---   ---     0                  bluez_midi.server
+C  121      0      0    ---     ---   ---   ---     0                  alsa_output.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo-output
+C  122      0      0    ---     ---   ---   ---     0                  alsa_input.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo-input
+C  123      0      0    ---     ---   ---   ---     0                  alsa_output.pci-0000_2d_00.1.hdmi-stereo-extra3
+C  124      0      0    ---     ---   ---   ---     0                  alsa_output.pci-0000_2f_00.4.analog-surround-51
+C  125      0      0    ---     ---   ---   ---     0                  alsa_input.pci-0000_2f_00.4.analog-stereo
+C  177      0      0    ---     ---   ---   ---     0                  noctalia
+C  291      0      0    ---     ---   ---   ---     0                  elena-windows
+C  277      0      0    ---     ---   ---   ---     0                  elena_medidor.nodo.elena_musica
+C  324      0      0    ---     ---   ---   ---     0                  elena_medidor.app.4235
+C  235      0      0    ---     ---   ---   ---     0                  elena_medidor.nodo.elena_mic
+C  314      0      0    ---     ---   ---   ---     0                  Zen
+C  237      0      0    ---     ---   ---   ---     0                  elena_medidor.app.5696
+S   ID  QUANT   RATE    WAIT    BUSY   W/Q   B/Q  ERR FORMAT           NAME 
+S   42      0      0    ---     ---   ---   ---     0                  Dummy-Driver
+S   43      0      0    ---     ---   ---   ---     0                  Freewheel-Driver
+S  103      0      0    ---     ---   ---   ---     0                  Midi-Bridge
+S  106      0      0    ---     ---   ---   ---     0                  bluez_midi.server
+S  121      0      0    ---     ---   ---   ---     0                  alsa_output.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo-output
+R  122    256  48000 135.1us   0.7us  0.03  0.00    3    S16LE 2 48000 alsa_input.usb-Burr-Brown_from_TI_USB_Audio_CODEC-00.analog-stereo-input
+R   44      0      0  10.1us   2.1us  0.00  0.00    0     F32P 1 48000  + elena_voz
+R   52      0      0  23.8us   3.9us  0.00  0.00    0         F32P 6 0  + elena_musica.salida
+R   53      0      0  24.9us   6.6us  0.00  0.00    0         F32P 6 0  + elena_musica
+I   55      0      0  16.3us   1.5us  0.00  0.00    0         F32P 6 0  + elena_juegos.salida
+S   56      0      0    ---     ---   ---   ---     0                   + elena_juegos
+R   58      0      0  28.3us   4.8us  0.01  0.00    0         F32P 2 0  + elena_sistema.salida
+R   59      0      0  18.2us   8.6us  0.00  0.00    0         F32P 2 0  + elena_sistema
+S   62      0      0    ---     ---   ---   ---     0                   + elena_chat.salida
+R   63      0      0  33.1us   7.5us  0.01  0.00    0         F32P 2 0  + elena_chat
+R   67    480  48000  11.7us   3.4us  0.00  0.00    0     F32P 1 48000  + elena_limpio.captura
+R   68    480  48000  15.5us   1.8us  0.00  0.00    7     F32P 1 48000  + elena_limpio
+R   69    480  48000  35.3us   2.7us  0.01  0.00    0     F32P 1 48000  + elena_limpio.referencia
+R   71      0      0  32.7us   2.6us  0.01  0.00    1         F32P 1 0  + elena_directo
+R   72      0      0  29.6us   3.3us  0.01  0.00    0         F32P 1 0  + elena_directo.entrada
+R   74      0      0  27.6us   1.8us  0.01  0.00    0         F32P 1 0  + elena_limpio_a_voz
+R   75      0      0  25.6us   2.7us  0.00  0.00    0         F32P 1 0  + elena_limpio_a_voz.entrada
+R   77      0      0   4.4us   1.9us  0.00  0.00    0         F32P 1 0  + elena_mic
+R   78      0      0   4.1us   3.3us  0.00  0.00    0         F32P 1 0  + elena_mic.mezcla
+R   80      0      0   5.0us   1.4us  0.00  0.00    0         F32P 1 0  + elena_mic_web
+R   81      0      0   5.0us   2.6us  0.00  0.00    0         F32P 1 0  + elena_mic_web.mezcla
+R   83      0      0   4.1us   1.5us  0.00  0.00    0         F32P 1 0  + elena_voz_a_mic
+R   84      0      0  24.2us   2.6us  0.00  0.00    0         F32P 1 0  + elena_voz_a_mic.entrada
+R   87      0      0   4.0us   1.7us  0.00  0.00    0         F32P 1 0  + elena_voz_a_mic_web
+R   88      0      0  26.8us   2.3us  0.01  0.00    0         F32P 1 0  + elena_voz_a_mic_web.entrada
+R   89      0      0  18.6us   1.6us  0.00  0.00    0         F32P 2 0  + elena_puente_navegador
+R   90      0      0  32.0us   3.2us  0.01  0.00    0         F32P 2 0  + elena_puente_navegador.entrada
+R   91      0      0  11.2us   1.7us  0.00  0.00    0         F32P 2 0  + elena_puente_chat
+R   92      0      0  27.0us   3.6us  0.01  0.00    0         F32P 2 0  + elena_puente_chat.entrada
+R  124      0      0   9.2us  21.5us  0.00  0.00   17    S32LE 6 48000  + alsa_output.pci-0000_2f_00.4.analog-surround-51
+R  177      0      0  13.1us   4.0us  0.00  0.00   48    F32LE 2 48000  = noctalia
+R  291    360  48000  13.3us   7.7us  0.00  0.00    0    S16LE 6 48000  + elena-windows
+R  277    960  48000   5.1us   6.8us  0.00  0.00    0    F32LE 6 48000  = elena_medidor.nodo.elena_musica
+R  324    960  48000   7.2us   8.3us  0.00  0.00    0    F32LE 6 48000  = elena_medidor.app.4235
+R  235    960  48000   7.4us   3.0us  0.00  0.00    0    F32LE 1 48000  = elena_medidor.nodo.elena_mic
+R  237    960  48000  17.4us  13.9us  0.00  0.00    0    F32LE 2 48000  = elena_medidor.app.5696
+S  123      0      0    ---     ---   ---   ---     0                  alsa_output.pci-0000_2d_00.1.hdmi-stereo-extra3
+S  125      0      0    ---     ---   ---   ---     0                  alsa_input.pci-0000_2f_00.4.analog-stereo
+I  314      0      0   0.0us   0.0us  ???   ???     0    F32LE 2 44100 Zen

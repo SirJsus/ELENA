@@ -1,0 +1,38 @@
+# ELENA: la consola (TUI y CLI) sobre los buses de PipeWire.
+# Guía: docs/guias/consola.md
+[project]
+name = "elena"
+version = "0.1.0"
+description = "Consola de ELENA: buses, ruteo de apps, volúmenes y medidores por canal en PipeWire"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.14"
+dependencies = [
+  "textual>=8.2,<9",
+  "numpy>=2.5,<3",
+  "tomli-w>=1.2,<2",
+  "dbus-fast>=2,<5",
+  "aiohttp>=3.12,<4",
+  "segno>=1.6,<2",
+]
+
+[project.scripts]
+elena = "elena.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2,<10",
+    "pytest-asyncio>=1.0,<2",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+cache_dir = ".cache/pytest"
+addopts = ["--basetemp=.cache/pytest/tmp"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

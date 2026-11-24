@@ -1,0 +1,8 @@
+# Escenas de ELENA: volumen (% como pavucontrol) y silencio de cada bus.
+# Se aplican con `e` en la consola o con `elena escena <nombre>`, y se guardan desde ahí.
+# Solo tocan los buses (musica, juegos, sistema, chat), no a dónde va cada app.
+# Ejemplo:
+#   [escenas.juego]
+#   volumen = { musica = 40, juegos = 100, sistema = 50, chat = 80 }
+#   silencio = { musica = false }
+

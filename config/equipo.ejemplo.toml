@@ -1,0 +1,13 @@
+# ELENA — tu equipo (ejemplo). `mise run iniciar` crea local/equipo.toml con lo que detecta;
+# `mise run equipo detectar` lo vuelve a proponer. Después de cambiarlo: mise run aplicar.
+# Formato plano (sin [tablas]): mise lo carga como variables de entorno.
+
+# Tarjeta con salida 5.1 analógica y su perfil (pactl list cards)
+ELENA_TARJETA = "alsa_card.pci-0000_00_1f.3"
+ELENA_PERFIL = "output:analog-surround-51+input:analog-stereo"
+# Su sink 5.1 (pactl list sinks short, con ese perfil puesto)
+ELENA_SINK_FISICO = "alsa_output.pci-0000_00_1f.3.analog-surround-51"
+# Mic físico que alimenta el mic virtual elena_mic (pactl list sources short). Vacío: sin mic virtual.
+ELENA_MIC_FISICO = "alsa_input.usb-Mi_Microfono-00.mono-fallback"
+# Audífonos: a donde va Chat y «solo audífonos» (pactl list sinks short). Vacío: Chat va a las bocinas.
+ELENA_AUDIFONOS = ""

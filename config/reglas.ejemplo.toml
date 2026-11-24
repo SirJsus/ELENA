@@ -1,0 +1,22 @@
+# Reglas fijas de ELENA: cada app nueva va al bus de la primera regla que coincide.
+# Las aplica el vigilante (`elena vigilar`, servicio elena-vigilante) y se editan con `r` en la
+# consola, con `elena regla <app> <bus>` o a mano aquí (local/reglas.toml).
+#   bus      musica, juegos, sistema, chat, o el node.name de una salida.
+#            visual: para apps que GRABAN el sonido del sistema (visualizadores); las manda
+#            a la mezcla elena_visual (30-elena-visual.conf). Las demás son para apps que suenan.
+#   app      application.name      ┐ al menos uno; aceptan comodines (* y ?) y no
+#   proceso  argv[0] (Wine: X.exe) │ distinguen mayúsculas. Si hay varios, deben
+#   media    media.name            ┘ coincidir todos.
+# Ejemplos:
+#   [[regla]]
+#   app = "Discord"
+#   bus = "chat"
+#
+#   [[regla]]
+#   proceso = "ToyShire*"
+#   bus = "juegos"
+#
+#   [[regla]]
+#   app = "Waywallen Daemon"
+#   bus = "visual"
+

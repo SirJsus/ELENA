@@ -1,0 +1,36 @@
+# Copia fija para las pruebas (los valores medidos del 2026-11-13, con el sub de comparar): no sigue al de local/.
+# ELENA — calibración de las bocinas (datos para las pruebas).
+#
+# `elena calibracion generar` (mise run calibracion -- generar) escribe con esto
+# 40-elena-calibracion.conf. Ganancias en dB, retardos en ms o
+# distancias en m (una u otra por bocina), frecuencias en Hz.
+
+# evitar_saturacion: si algún camino sube de 0 dB, todo baja lo mismo para que nada sature (con estos valores, ninguno).
+evitar_saturacion = true
+
+# Tu 100 %: la ganancia de FL hasta el DAC con el bus al 100 % (comparar, 2026-11-13).
+nivel = -21.0
+
+[bocinas]                     # ganancia en dB sobre FL (nivelar, 2026-11-13)
+fl  = { ganancia = 0.0 }
+fr  = { ganancia = 0.5 }
+fc  = { ganancia = 5.5 }
+rl  = { ganancia = 6.0 }
+rr  = { ganancia = 9.0 }
+sub = { ganancia = 8.5 }      # la bocina del sub: al oído con el cruce (afinar, 2026-11-13); en comparar, sin cruce, +8.5
+
+[lfe]
+nivel = 10.0                   # el contenido del canal LFE, como un receptor
+
+[cruce]
+frecuencia = 110              # Hz (prueba de las satélites, 2026-11-11); `cruce = <Hz>` en una bocina gana
+
+[maximo]
+tope = 8.0                    # dB sobre tu 100 % (136 % del bus), con música (comparar, 2026-11-13)
+perilla = ""                  # anota la posición de la perilla del amplificador: el tope vale para ella
+
+[eq]                          # común a las 5 satélites: { tipo = "pico" | "estante_grave" | "estante_agudo", frecuencia, ganancia, q }
+bandas = []
+
+[eq_sub]
+bandas = []

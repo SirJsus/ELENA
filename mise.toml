@@ -1,0 +1,190 @@
+# ELENA — Enrutador Linux Envolvente Nativo de Audio
+# Config de PipeWire/WirePlumber y scripts de bash; la consola es Python con uv.
+
+[tools]
+python = "3.14"
+uv = "0.13.6"
+
+[env]
+# Regla del proyecto: nada se escribe fuera del repositorio. Todo lo temporal va a .cache/
+TMPDIR = "{{config_root}}/.cache/tmp"
+ELENA = "{{config_root}}"
+# Lo de tu equipo: config, calibración, reglas, escenas y los .conf generados (fuera de git)
+ELENA_LOCAL = "{{config_root}}/local"
+# Tu tarjeta, sink, mic y audífonos (ELENA_TARJETA, ELENA_SINK_FISICO…): los crea `mise run iniciar`.
+# Si falta el archivo, mise sigue sin esas variables.
+_.file = "{{config_root}}/local/equipo.toml"
+# VM de Windows (opcional): ISO de Windows y carpeta de instaladores (guía de la VM)
+ELENA_VM_ISO = "{{ get_env(name='ELENA_VM_ISO', default=config_root ~ '/.cache/windows.iso') }}"
+ELENA_VM_INSTALADORES = "{{ get_env(name='ELENA_VM_INSTALADORES', default=config_root ~ '/.cache/instaladores') }}"
+# Recursos de la VM y disco de la biblioteca (M: en Windows; el tamaño solo cuenta al crearlo, la
+# primera vez que arranca; para agrandarlo: qemu-img resize, ver la guía de la VM).
+# Con get_env, el valor de aquí es solo el de por defecto: mise pone su [env] por encima del de la
+# terminal, y sin get_env `ELENA_VM_RAM=8G mise run vm:arrancar` no cambiaría nada.
+ELENA_VM_RAM = "{{ get_env(name='ELENA_VM_RAM', default='4G') }}"
+ELENA_VM_NUCLEOS = "{{ get_env(name='ELENA_VM_NUCLEOS', default='6') }}"
+ELENA_VM_MUSICA_TAMANO = "{{ get_env(name='ELENA_VM_MUSICA_TAMANO', default='150G') }}"
+# Resolución de Windows: OVMF la toma del EDID de la VGA al encender la VM (no al reiniciar Windows).
+# Conviene la de tu monitor: la VM abre en pantalla completa (vm/qemu.sh).
+ELENA_VM_RESOLUCION = "{{ get_env(name='ELENA_VM_RESOLUCION', default='1920x1080') }}"
+# uv con el Python de mise y su caché dentro del proyecto (nada en ~/.cache ni ~/.local/share)
+UV_CACHE_DIR = "{{config_root}}/.cache/uv"
+UV_PYTHON_DOWNLOADS = "never"
+UV_PYTHON_PREFERENCE = "only-system"
+# Bytecode de Python (también el de la biblioteca estándar de mise) dentro del proyecto
+PYTHONPYCACHEPREFIX = "{{config_root}}/.cache/pycache"
+# Control remoto de música (elena remoto). Solo IPv4 en la LAN; la regla del firewall va a mano
+# (ELENA no toca /etc) y debe usar este mismo puerto. Guía: docs/guias/control-remoto.md
+ELENA_REMOTO_PUERTO = "{{ get_env(name='ELENA_REMOTO_PUERTO', default='8765') }}"
+
+# ---------- Equipo, hardware 5.1 y buses ----------
+
+[tasks.iniciar]
+description = "Primera vez: crea local/ con los ejemplos de config/ y un equipo.toml con tu tarjeta, mic y salidas detectados"
+run = "uv run elena equipo iniciar"
+
+[tasks.equipo]
+description = "Tu equipo (local/equipo.toml): sin argumento, lo muestra; detectar (propone uno) o generar (los .conf de local/)"
+usage = 'arg "[accion]" help="detectar o generar"'
+run = 'uv run elena equipo ${usage_accion:-}'
+
+[tasks.aplicar]
+description = "Enlaza la config en ~/.config y pone la tarjeta en 5.1 (alcance: perfil = solo el 5.1; todo = con buses, mic virtual, lanzadores Steam (ELENA 5.1) y Consola ELENA, y el vigilante)"
+usage = 'arg "[alcance]" help="perfil (solo 5.1, sin buses) o todo (5.1, buses y mic virtual)" default="todo"'
+run = 'scripts/aplicar.sh "${usage_alcance:-todo}"'
+
+[tasks.quitar]
+description = "Quita los enlaces, los lanzadores y el vigilante, y restaura perfil, sink y fuente por defecto y los volúmenes previos"
+run = "scripts/quitar.sh"
+
+[tasks.estado]
+description = "Muestra buses, mics, streams y grabaciones: canales, silencio y conexiones"
+run = "scripts/estado.sh"
+
+[tasks."probar:canales"]
+description = "speaker-test contra un sink (por defecto el físico), con sus canales (2 o 6); --canal N prueba una sola bocina"
+usage = '''
+arg "[nodo]" help="node.name destino, ej. elena_juegos"
+flag "--canal <n>" help="una sola bocina: 1=FL 2=FR 3=RL 4=RR 5=FC 6=LFE"
+'''
+run = 'scripts/probar-canales.sh "${usage_nodo:-}" "${usage_canal:-}"'
+
+[tasks."mic:voz"]
+description = "Tu voz en los mics virtuales (silencia o activa ELENA · Voz): on, off o sin argumento"
+usage = 'arg "[modo]" help="on u off"'
+run = 'scripts/mic.sh voz "${usage_modo:-}"'
+
+[tasks."mic:ruido"]
+description = "Supresión de ruido del mic virtual: on, off o sin argumento para ver el estado"
+usage = 'arg "[modo]" help="on u off"'
+run = 'scripts/mic.sh ruido "${usage_modo:-}"'
+
+[tasks."mic:puente"]
+description = "Puente entre llamadas (navegador → Mic, chat → Mic web): on, off o sin argumento"
+usage = 'arg "[modo]" help="on u off"'
+run = 'scripts/mic.sh puente "${usage_modo:-}"'
+
+# Mezcla para visualizadores (elena_visual, 30-elena-visual.conf): guía docs/guias/visualizadores.md
+[tasks.visual]
+description = "Qué buses entran a la mezcla de los visualizadores (elena_visual): sin argumentos, el estado; con bus, on, off o alternar"
+usage = '''
+arg "[bus]" help="musica, juegos o sistema"
+arg "[modo]" help="on (entra) u off (no entra); sin él, alterna"
+'''
+run = 'uv run elena visual ${usage_bus:-} ${usage_modo:-}'
+
+# «Solo audífonos» (50-elena-audifonos.conf): guía docs/guias/consola.md#solo-audífonos
+[tasks.audifonos]
+description = "Solo audífonos: Música, Juegos y Sistema a donde va Chat (on, off, alternar), cómo suenan ahí (binaural o directo) y sus graves (graves <dB> [--hz F], lfe <dB>); sin argumento, el estado"
+usage = '''
+arg "[modo]" help="on, off, alternar, binaural, directo, graves o lfe"
+arg "[valor]" help="con graves o lfe: dB"
+flag "--hz <hz>" help="con graves: la frecuencia del estante"
+'''
+run = 'uv run elena audifonos ${usage_modo:-} ${usage_valor:-} ${usage_hz:+--hz $usage_hz}'
+
+# ---------- Juegos ----------
+
+[tasks."juegos:steam"]
+description = "Abre Steam con todo su audio (y el de Proton, con winepulse) en elena_juegos; lo mismo que el lanzador Steam (ELENA 5.1)"
+run = "scripts/steam.sh"
+
+[tasks."medir:canales"]
+description = "Graba el monitor de un sink (elena_juegos por defecto) y muestra el nivel de cada canal y qué streams entran"
+usage = '''
+arg "[nodo]" help="node.name del sink, ej. elena_musica" default="elena_juegos"
+flag "--segundos <n>" help="duración de la grabación" default="15"
+'''
+run = 'scripts/medir-canales.sh "${usage_nodo:-elena_juegos}" "${usage_segundos:-15}"'
+
+# ---------- Cider ----------
+
+[tasks.cider]
+description = "Lanza Cider (AppImage en .cache/apps/) con su estado dentro del proyecto"
+run = "scripts/cider.sh"
+
+# ---------- VM de Windows (capa 3) ----------
+
+[tasks."vm:caja"]
+description = "Crea e inicializa la caja Distrobox elena-vm (QEMU, OVMF, swtpm y xorriso); requiere distrobox"
+run = "vm/crear-caja.sh"
+
+[tasks."vm:instaladores"]
+description = "Prepara Apple Music (como gUIA.txt), dependencias e instalar.cmd, comprueba dependencias y crea .cache/vm/instaladores.iso"
+run = "vm/instaladores.sh"
+
+[tasks."vm:arrancar"]
+description = "Arranca la VM de Windows con audio USB multicanal hacia elena_musica (backend pa con 100 ms de colchón; ELENA_VM_AUDIO=pipewire para el alterno)"
+run = "vm/arrancar.sh"
+
+[tasks."vm:intercambio"]
+description = "Copia a .cache/vm/intercambio/ lo que Windows dejó en la memoria USB virtual ELENA-INT (con la VM apagada)"
+run = "vm/intercambio.sh"
+
+[tasks."vm:prueba-serie"]
+description = "Lado Linux de la prueba del puerto serie (COM1 ↔ .cache/vm/musica.sock); se corre cuando prueba-serie.ps1 lo pide en Windows"
+run = "uv run python vm/prueba_serie.py"
+
+[tasks."vm:lanzador"]
+description = "Lanzador «Apple Music (ELENA)» y servicio elena-vm (apaga Windows en orden al cerrar sesión): instalar, quitar o estado"
+usage = 'arg "[accion]" help="instalar, quitar o estado" default="estado"'
+run = 'vm/lanzador.sh "${usage_accion:-estado}"'
+
+[tasks."vm:borrar"]
+description = "Borra la caja elena-vm y .cache/vm/ (discos de Windows y de música incluidos); pide confirmación salvo con --si"
+usage = 'flag "--si" help="no pedir confirmación"'
+run = 'vm/borrar.sh ${usage_si:+--si}'
+
+# ---------- Consola ELENA ----------
+
+[tasks.consola]
+description = "Abre la consola ELENA (TUI) en esta terminal: buses, apps, ruteo, volúmenes y medidores (guía: docs/guias/consola.md)"
+run = "uv run elena"
+
+[tasks.elena]
+description = "CLI de la consola: mise run elena -- estado | mover | volumen | silenciar | escena | reglas | regla | vigilar"
+run = "uv run elena"
+
+# ---------- Calibración ----------
+# Guía: docs/guias/calibracion.md
+
+[tasks.calibracion]
+description = "Calibración de las bocinas: mise run calibracion -- generar (local/calibracion.toml → 40-elena-calibracion.conf) | volumen (primero: el volumen más alto cómodo por bocina) | satelites [--mic] (hasta qué tan grave llega cada satélite, a ese volumen) | nivelar [--mic] (el balance entre las satélites, desde neutro y a ciegas) | musica (¿el sub aguanta tu volumen ideal?) | comparar (tu 100 %, tu sub y tu máximo con música, desde neutro)"
+run = "uv run elena calibracion"
+
+[tasks.vigilante]
+description = "Servicio elena-vigilante (reglas fijas por app): instalar, quitar o estado (sin argumento)"
+usage = 'arg "[accion]" help="instalar, quitar o estado" default="estado"'
+run = 'scripts/vigilante.sh "${usage_accion:-estado}"'
+
+# ---------- Control remoto de música ----------
+# Guía: docs/guias/control-remoto.md
+
+[tasks.remoto]
+description = "Control remoto de música para el teléfono (servicio elena-remoto): instalar, quitar, qr (emparejar) o estado (sin argumento)"
+usage = 'arg "[accion]" help="instalar, quitar, qr o estado" default="estado"'
+run = 'scripts/remoto.sh "${usage_accion:-estado}"'
+
+[tasks.test]
+description = "Pruebas de la consola (pytest)"
+run = "uv run pytest"

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1014">
+<meta name="color-scheme" content="dark">
+<title>ELENA · Música</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="barra">
+  <span class="marca">ELENA</span>
+  <select id="reproductor" aria-label="Reproductor" hidden></select>
+  <span id="conexion" class="punto" role="status" aria-label="Sin conexión"></span>
+</header>
+
+<main id="app" hidden>
+  <section class="reproductor">
+    <div class="caratula">
+      <img id="caratula" alt="" hidden>
+      <svg id="sin-caratula" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    </div>
+    <h1 id="titulo">Nada sonando</h1>
+    <p id="artista" class="tenue"></p>
+    <div class="avance" aria-hidden="true">
+      <div class="pista"><div id="relleno"></div></div>
+      <div class="tiempos"><span id="pos">0:00</span><span id="dur"></span></div>
+    </div>
+    <div class="controles">
+      <button id="anterior" class="redondo" aria-label="Anterior">
+        <svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+      </button>
+      <button id="alternar" class="redondo grande" aria-label="Reproducir">
+        <svg id="icono-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="icono-pausa" viewBox="0 0 24 24" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      </button>
+      <button id="siguiente" class="redondo" aria-label="Siguiente">
+        <svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <section class="volumen" aria-label="Volumen de ELENA · Música">
+    <button id="mudo" class="icono" aria-label="Silenciar">
+      <svg id="icono-sonido" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path class="trazo" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+      <svg id="icono-mudo" viewBox="0 0 24 24" hidden><path d="M4 9v6h4l5 4V5L8 9z"/><path class="trazo" d="M16 9l5 6M21 9l-5 6"/></svg>
+    </button>
+    <input id="vol" type="range" min="0" max="100" step="1" value="0" aria-label="Volumen">
+    <span id="vol-valor" class="cifra">—</span>
+  </section>
+
+  <section class="tarjeta" aria-labelledby="t-temporizador">
+    <h2 id="t-temporizador">Temporizador</h2>
+    <div id="tz-inactivo">
+      <div class="chips">
+        <button data-min="15">15</button><button data-min="30">30</button><button data-min="45">45</button>
+        <button data-min="60">60</button><button data-min="90">90</button>
+        <button data-fin>Fin de canción</button>
+      </div>
+      <form id="tz-form" class="fila">
+        <input id="tz-min" type="number" inputmode="numeric" min="1" max="720" placeholder="Minutos" aria-label="Minutos">
+        <button type="submit">Poner</button>
+      </form>
+      <fieldset class="niveles">
+        <legend>Al terminar</legend>
+        <label><input type="radio" name="nivel" value="pausar" checked><span>Pausar</span></label>
+        <label><input type="radio" name="nivel" value="vm"><span>+ apagar VM</span></label>
+        <label><input type="radio" name="nivel" value="suspender"><span>+ suspender PC</span></label>
+        <label><input type="radio" name="nivel" value="apagar"><span>+ apagar PC</span></label>
+      </fieldset>
+    </div>
+    <div id="tz-activo" hidden>
+      <div id="tz-cuenta" class="cuenta cifra">0:00</div>
+      <p id="tz-detalle" class="tenue"></p>
+      <div class="fila">
+        <button id="tz-mas">+10 min</button>
+        <button id="tz-cancelar" class="peligro">Cancelar</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tarjeta" aria-labelledby="t-equipo">
+    <h2 id="t-equipo">Equipo</h2>
+    <div class="fila espaciada">
+      <span>VM de Windows: <b id="vm-estado">—</b></span>
+      <button id="vm-encender" hidden>Encender</button>
+      <button id="vm-apagar" class="mantener" data-mantener="vm" hidden>Apagar</button>
+    </div>
+    <div class="fila">
+      <button class="mantener" data-mantener="suspender">Suspender PC</button>
+      <button class="mantener peligro" data-mantener="apagar">Apagar PC</button>
+    </div>
+    <p class="nota tenue">Apagar y suspender: mantén presionado 2 s.</p>
+  </section>
+</main>
+
+<section id="emparejar" class="vacio" hidden>
+  <h1>Falta emparejar este teléfono</h1>
+  <p class="tenue">En la PC, corre <code>mise run remoto qr</code> y escanea el código con la cámara.</p>
+</section>
+
+<div id="aviso" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

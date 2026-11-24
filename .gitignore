@@ -1,0 +1,15 @@
+# Temporales, AppImages, estado previo del audio y la VM (disco, TPM, home de la caja)
+.cache/
+
+# Lo de cada equipo: equipo.toml, calibración, reglas, escenas y los .conf generados (mise run iniciar)
+local/
+
+# Ajustes propios de cada máquina
+mise.local.toml
+CLAUDE.local.md
+.env
+.claude/settings.local.json
+
+# Entorno de uv y bytecode
+.venv/
+__pycache__/

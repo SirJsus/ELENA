@@ -1,0 +1,44 @@
+# ELENA — calibración de las bocinas: punto de partida neutro.
+#
+# `mise run iniciar` lo copia a local/calibracion.toml, que es tu fuente de verdad. Con él,
+# `elena calibracion generar` escribe 40-elena-calibracion.conf (un filter-chain: el sink elena_salida)
+# y `elena calibracion activar` + `mise run aplicar` lo ponen entre los buses y las bocinas.
+# Ganancias en dB, retardos en ms o distancias en m (una u otra por bocina), frecuencias en Hz.
+# Las pruebas que dan estos valores (volumen, satélites, nivelar, comparar) y cómo afinarlos en
+# vivo: docs/guias/calibracion.md
+
+# Si algún camino sube de 0 dB, todo baja lo mismo para que nada sature (y se avisa).
+evitar_saturacion = true
+
+# Tu 100 %: la ganancia de FL hasta el DAC con el bus al 100 % (lo mide `elena calibracion comparar`).
+# −10 deja lugar al LFE +10 sin saturar.
+nivel = -10.0
+
+[bocinas]                     # ganancia en dB sobre FL (la mide `elena calibracion nivelar`)
+fl  = { ganancia = 0.0 }
+fr  = { ganancia = 0.0 }
+fc  = { ganancia = 0.0 }
+rl  = { ganancia = 0.0 }
+rr  = { ganancia = 0.0 }
+sub = { ganancia = 0.0 }      # la bocina del sub
+
+[lfe]
+nivel = 10.0                   # el contenido del canal LFE, como un receptor (+10 dB)
+
+[cruce]
+frecuencia = 80               # Hz, cruce de graves al sub (80 es el habitual; `elena calibracion satelites` ayuda
+                              # a elegirlo). `cruce = <Hz>` en una bocina gana. Sin la sección: rango completo.
+
+[maximo]
+# tope = 6.0                  # dB sobre tu 100 % que los buses no pasan (lo mide `elena calibracion comparar`)
+perilla = ""                  # anota la posición de la perilla del amplificador: el tope vale para ella
+
+[estereo]                     # cuánto baja el bus mientras suena estéreo (si tu música estéreo suena más fuerte
+compensacion = 0.0            # que la multicanal; lo aplica el vigilante, en rampa). 0: nada.
+buses = ["musica", "sistema"] # Sistema es estéreo siempre: va compensado siempre
+
+[eq]                          # común a las 5 satélites: { tipo = "pico" | "estante_grave" | "estante_agudo", frecuencia, ganancia, q }
+bandas = []
+
+[eq_sub]
+bandas = []
